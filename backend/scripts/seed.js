@@ -7,7 +7,7 @@ import crypto from 'node:crypto';
 import sharp from 'sharp';
 import bcrypt from 'bcryptjs';
 import { openDb, migrate, now } from '../src/db.js';
-import { UPLOADS_DIR, DB_PATH } from '../src/config.js';
+import { UPLOADS_DIR, DB_PATH, ROOT } from '../src/config.js';
 import { imagePaths } from '../src/images.js';
 
 const force = process.argv.includes('--force');
@@ -108,6 +108,21 @@ function wrap(text, max = 16) {
   return lines.slice(0, 3);
 }
 
+// Real product photos (CC0 / public domain, see seed-images/CREDITS.md) named <title-slug>-<n>.jpg.
+const PHOTOS_DIR = path.join(ROOT, 'seed-images');
+const titleSlug = (t) => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const photosFor = (title) => (fs.existsSync(PHOTOS_DIR) ? fs.readdirSync(PHOTOS_DIR) : [])
+  .filter((f) => new RegExp(`^${titleSlug(title)}-\\d+\\.(jpe?g|png|webp)$`).test(f)).sort()
+  .map((f) => path.join(PHOTOS_DIR, f)).slice(0, 5);
+
+async function storePhoto(file) {
+  const key = crypto.randomBytes(16).toString('hex');
+  const img = sharp(file).rotate();
+  await img.clone().resize(400, 400, { fit: 'cover', position: 'attention' }).webp({ quality: 78 }).toFile(path.join(UPLOADS_DIR, `${key}_thumb.webp`));
+  await img.clone().resize(1200, 1200, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 82 }).toFile(path.join(UPLOADS_DIR, `${key}_large.webp`));
+  return key;
+}
+
 async function makeImage(title, hue, variant) {
   const h2 = (hue + 40 + variant * 25) % 360;
   const lines = wrap(title);
@@ -138,7 +153,10 @@ const imagePlan = [];
 let n = 0;
 for (const [, slug, hue] of CATEGORIES) {
   for (const [title] of PRODUCTS[slug]) {
-    const keys = [await makeImage(title, hue, 0), await makeImage(title, hue, 1)];
+    const photos = photosFor(title);
+    const keys = photos.length
+      ? await Promise.all(photos.map(storePhoto))
+      : [await makeImage(title, hue, 0), await makeImage(title, hue, 1)];
     imagePlan.push({ slug, title, keys, i: n++ });
   }
 }

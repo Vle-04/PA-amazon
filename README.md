@@ -74,6 +74,7 @@ backend/
     mail.js                   verification emails (SMTP)
     backup.js                 daily VACUUM INTO, keeps 7
   scripts/                    setup, migrate, seed, backup
+  seed-images/                demo product photos (free licenses, see CREDITS.md)
   tests/                      break-it, email verification, foreign-key test
   postman/openapi.yaml        API contract
   .env.example                settings template
