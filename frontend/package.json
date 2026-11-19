@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "engines": { "node": ">=22" },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:netlify": "vite build && node scripts/netlify-redirects.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

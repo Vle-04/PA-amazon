@@ -31,3 +31,13 @@ export const APP_URL = (process.env.APP_URL || '').replace(/\/$/, '');
 // Lets the break-it tests receive the verification code in the API response (header x-test-token).
 // Disabled in production unless TEST_AUTH_TOKEN is set.
 export const TEST_AUTH_TOKEN = process.env.TEST_AUTH_TOKEN || (IS_PROD ? '' : 'dev-test-token');
+
+// Number of proxies in front of the app (1 = Render/Fly only; 2 = Netlify proxy + Render).
+export const TRUST_PROXY = Number(process.env.TRUST_PROXY || 1);
+// Sites allowed to send state-changing requests (the frontend address), besides the backend's own host.
+export const ALLOWED_ORIGIN_HOSTS = new Set(
+  [APP_URL, ...(process.env.ALLOWED_ORIGINS || '').split(',')]
+    .map((u) => u.trim()).filter(Boolean)
+    .map((u) => { try { return new URL(u).host; } catch { return null; } })
+    .filter(Boolean),
+);

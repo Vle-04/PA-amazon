@@ -132,6 +132,15 @@ Environment variables (see `backend/.env.example`):
 | `APP_URL` | public address, e.g. `https://shuka.fly.dev` (used in email links) |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | email provider settings |
 
+### Netlify (frontend) + Render (backend)
+
+- `netlify.toml` builds `frontend/` and writes `_redirects` that proxy `/api` and `/uploads` to
+  `BACKEND_URL` (set in Netlify). The browser only talks to the Netlify domain, so the login
+  cookie is first-party and no CORS is needed.
+- Render runs `backend/` as a Node web service with a persistent disk (paid instance) mounted at
+  `/var/data` (`DATA_DIR=/var/data`). Set `APP_URL` to the Netlify address and `TRUST_PROXY=2`.
+- Run the break-it tests directly against the Render address (`BASE_URL=https://<api>.onrender.com`).
+
 ### Fly.io
 
 ```bash

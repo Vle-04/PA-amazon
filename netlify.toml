@@ -1,0 +1,13 @@
+# Netlify builds only the frontend. Set BACKEND_URL (your Render address) in the Netlify UI.
+[build]
+  base = "frontend"
+  command = "npm run build:netlify"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "24"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
