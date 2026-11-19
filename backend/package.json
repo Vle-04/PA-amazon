@@ -1,0 +1,26 @@
+{
+  "name": "shuka-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "setup": "node scripts/setup.js",
+    "dev": "node --watch-path=src src/index.js",
+    "start": "node scripts/migrate.js && node src/index.js",
+    "migrate": "node scripts/migrate.js",
+    "seed": "node scripts/seed.js",
+    "backup": "node scripts/backup.js",
+    "test:break-it": "node tests/break-it.mjs",
+    "test:fk": "node tests/fk-test.mjs",
+    "test:email": "node tests/email-verification.mjs"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^13.2.0",
+    "cookie-parser": "^1.4.7",
+    "express": "^5.3.0",
+    "multer": "^2.5.0",
+    "nodemailer": "^10.6.0",
+    "sharp": "^0.35.5"
+  }
+}

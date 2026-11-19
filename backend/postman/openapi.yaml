@@ -1,0 +1,213 @@
+openapi: 3.1.0
+info:
+  title: Shuka Marketplace API
+  version: 1.0.0
+  description: |
+    REST JSON API served by the single Shuka process under /api.
+    Auth is an httpOnly session cookie (`shuka_session`) set by register/login.
+    Money is integer AMD. Every error uses the shape `{ "error": { "code", "message", ... } }`;
+    validation errors (400) add `fields: { name: message }`.
+servers:
+  - url: http://localhost:3000/api
+components:
+  securitySchemes:
+    session: { type: apiKey, in: cookie, name: shuka_session }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, examples: [VALIDATION, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, PRICE_CHANGED, OUT_OF_STOCK, NOT_ENOUGH_STOCK, INVALID_TRANSITION, INVALID_IMAGE, FILE_TOO_LARGE] }
+            message: { type: string }
+            fields: { type: object, additionalProperties: { type: string } }
+            items: { type: array, items: { type: object } }
+    Status: { type: string, enum: [placed, confirmed, shipped, delivered, cancelled] }
+    Address:
+      type: object
+      required: [recipient, phone, region, city, street, building]
+      properties:
+        recipient: { type: string }
+        phone: { type: string }
+        region: { type: string, enum: [Yerevan, Aragatsotn, Ararat, Armavir, Gegharkunik, Kotayk, Lori, Shirak, Syunik, Tavush, Vayots Dzor] }
+        city: { type: string }
+        street: { type: string }
+        building: { type: string }
+        apartment: { type: string }
+        note: { type: string }
+    ProductInput:
+      type: object
+      required: [title, description, price, stock, categoryId, images]
+      properties:
+        title: { type: string, minLength: 3, maxLength: 120 }
+        description: { type: string, minLength: 10, maxLength: 5000 }
+        price: { type: integer, minimum: 1 }
+        stock: { type: integer, minimum: 0 }
+        categoryId: { type: integer }
+        isPublished: { type: boolean }
+        images: { type: array, minItems: 1, maxItems: 5, items: { type: string, description: upload key; first is main } }
+  responses:
+    Error: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+security: [{ session: [] }]
+paths:
+  /auth/register:
+    post:
+      security: []
+      summary: Register; emails a 6-digit verification code. Does NOT sign in.
+      requestBody: { content: { application/json: { schema: { type: object, required: [email, password, name], properties: { email: { type: string }, password: { type: string, minLength: 8 }, name: { type: string }, phone: { type: string } } } } } }
+      responses: { '201': { description: '{ pendingVerification: true, email, emailSent }' }, '400': { $ref: '#/components/responses/Error' }, '409': { $ref: '#/components/responses/Error' } }
+  /auth/verify-email:
+    post:
+      security: []
+      summary: Confirm the email with the code; signs in (sets session cookie)
+      requestBody: { content: { application/json: { schema: { type: object, required: [email, code], properties: { email: { type: string }, code: { type: string, pattern: '^[0-9]{6}$' } } } } } }
+      responses: { '200': { description: '{ user }' }, '400': { description: 'INVALID_CODE, CODE_EXPIRED or TOO_MANY_ATTEMPTS', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } } }
+  /auth/resend-verification:
+    post:
+      security: []
+      summary: Send a new code (once per minute). Same answer whether or not the email exists.
+      requestBody: { content: { application/json: { schema: { type: object, required: [email], properties: { email: { type: string } } } } } }
+      responses: { '200': { description: OK }, '409': { description: TOO_SOON / TOO_MANY_REQUESTS, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } } }
+  /auth/login:
+    post:
+      security: []
+      summary: Sign in
+      requestBody: { content: { application/json: { schema: { type: object, required: [email, password], properties: { email: { type: string }, password: { type: string } } } } } }
+      responses: { '200': { description: OK }, '401': { $ref: '#/components/responses/Error' }, '403': { description: 'EMAIL_NOT_VERIFIED (a new code is emailed)', content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } } }
+  /auth/logout:
+    post: { summary: Sign out, responses: { '204': { description: Cookie cleared } } }
+  /me:
+    get: { security: [], summary: Current user or null, responses: { '200': { description: OK } } }
+    patch:
+      summary: Edit name and phone
+      requestBody: { content: { application/json: { schema: { type: object, required: [name], properties: { name: { type: string }, phone: { type: string } } } } } }
+      responses: { '200': { description: OK }, '400': { $ref: '#/components/responses/Error' }, '401': { $ref: '#/components/responses/Error' } }
+  /me/seller:
+    post:
+      summary: Become a seller (active at once) or update store details
+      requestBody: { content: { application/json: { schema: { type: object, required: [storeName, storePhone], properties: { storeName: { type: string }, storePhone: { type: string } } } } } }
+      responses: { '200': { description: OK }, '400': { $ref: '#/components/responses/Error' } }
+  /categories:
+    get: { security: [], summary: Flat category list with product counts, responses: { '200': { description: OK } } }
+  /products:
+    get:
+      security: []
+      summary: Search, filter, sort and paginate published products
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+        - { name: category, in: query, schema: { type: string }, description: category slug }
+        - { name: minPrice, in: query, schema: { type: integer } }
+        - { name: maxPrice, in: query, schema: { type: integer } }
+        - { name: sort, in: query, schema: { type: string, enum: [newest, price_asc, price_desc, rating], default: newest } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, default: 12, maximum: 48 } }
+      responses: { '200': { description: '{ items, total, page, pageSize, pages, sort }' } }
+  /products/{id}:
+    get:
+      security: []
+      summary: Product detail with images, reviews and review eligibility
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { '200': { description: OK }, '404': { $ref: '#/components/responses/Error' } }
+  /products/{id}/reviews:
+    post:
+      summary: Review a delivered product (one per buyer per product)
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [rating, text], properties: { rating: { type: integer, minimum: 1, maximum: 5 }, text: { type: string } } } } } }
+      responses: { '201': { description: Created }, '403': { $ref: '#/components/responses/Error' }, '409': { $ref: '#/components/responses/Error' } }
+  /cart:
+    get: { summary: Cart grouped by seller with subtotals, total, warnings and canCheckout, responses: { '200': { description: OK } } }
+  /cart/count:
+    get: { summary: Total units in cart (header badge), responses: { '200': { description: OK } } }
+  /cart/items:
+    post:
+      summary: Add to cart (quantity cannot exceed stock; cannot buy own product)
+      requestBody: { content: { application/json: { schema: { type: object, required: [productId, quantity], properties: { productId: { type: integer }, quantity: { type: integer } } } } } }
+      responses: { '201': { description: OK }, '403': { $ref: '#/components/responses/Error' }, '409': { $ref: '#/components/responses/Error' } }
+  /cart/items/{productId}:
+    parameters: [{ name: productId, in: path, required: true, schema: { type: integer } }]
+    patch:
+      summary: Change quantity
+      requestBody: { content: { application/json: { schema: { type: object, required: [quantity], properties: { quantity: { type: integer } } } } } }
+      responses: { '200': { description: OK }, '409': { $ref: '#/components/responses/Error' } }
+    delete: { summary: Remove item, responses: { '200': { description: OK } } }
+  /cart/accept-prices:
+    post: { summary: Buyer acknowledges changed prices, responses: { '200': { description: OK } } }
+  /orders:
+    get: { summary: Buyer's orders with a status per seller, responses: { '200': { description: OK } } }
+    post:
+      summary: Checkout (cash on delivery). Idempotent per requestKey.
+      description: |
+        One immediate transaction. Stock is decremented with a conditional update per line;
+        any failure rolls everything back with 409 (OUT_OF_STOCK or PRICE_CHANGED).
+        Repeating the same requestKey returns the existing order with 200.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/Address'
+                - type: object
+                  required: [requestKey]
+                  properties: { requestKey: { type: string, pattern: '^[A-Za-z0-9_-]{8,100}$' } }
+      responses:
+        '201': { description: Order created }
+        '200': { description: Existing order for this requestKey }
+        '400': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /orders/last-address:
+    get: { summary: Last used address for pre-filling checkout, responses: { '200': { description: OK } } }
+  /orders/{id}:
+    get:
+      summary: Order detail (scoped to buyer; others get 404)
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { '200': { description: OK }, '404': { $ref: '#/components/responses/Error' } }
+  /orders/{id}/parts/{partId}/cancel:
+    post:
+      summary: Buyer cancels one seller's part while Placed or Confirmed (stock returned)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+        - { name: partId, in: path, required: true, schema: { type: integer } }
+      responses: { '200': { description: OK }, '404': { $ref: '#/components/responses/Error' }, '409': { $ref: '#/components/responses/Error' } }
+  /uploads:
+    post:
+      summary: Upload one product image (seller). Checked by content, max 10 MB, resized to thumb + large.
+      requestBody: { content: { multipart/form-data: { schema: { type: object, properties: { image: { type: string, format: binary } } } } } }
+      responses: { '201': { description: '{ image: { key, thumb, large } }' }, '400': { $ref: '#/components/responses/Error' }, '403': { $ref: '#/components/responses/Error' } }
+  /seller/products:
+    get: { summary: Own products with units sold (non-cancelled), responses: { '200': { description: OK } } }
+    post:
+      summary: Create product
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/ProductInput' } } } }
+      responses: { '201': { description: Created }, '400': { $ref: '#/components/responses/Error' } }
+  /seller/products/{id}:
+    parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+    get: { summary: Own product for editing, responses: { '200': { description: OK }, '404': { $ref: '#/components/responses/Error' } } }
+    put:
+      summary: Replace product fields and images
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/ProductInput' } } } }
+      responses: { '200': { description: OK }, '400': { $ref: '#/components/responses/Error' }, '404': { $ref: '#/components/responses/Error' } }
+    patch:
+      summary: Publish or unpublish (products are never deleted)
+      requestBody: { content: { application/json: { schema: { type: object, required: [isPublished], properties: { isPublished: { type: boolean } } } } } }
+      responses: { '200': { description: OK }, '404': { $ref: '#/components/responses/Error' } }
+  /seller/orders:
+    get:
+      summary: Incoming seller orders with counts per status
+      parameters: [{ name: status, in: query, schema: { $ref: '#/components/schemas/Status' } }]
+      responses: { '200': { description: OK } }
+  /seller/orders/{id}:
+    get:
+      summary: Seller order detail with address, items at purchase price, cash to collect, allowed moves, history
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      responses: { '200': { description: OK }, '404': { $ref: '#/components/responses/Error' } }
+  /seller/orders/{id}/status:
+    post:
+      summary: Move a seller order (placed→confirmed→shipped→delivered; placed|confirmed→cancelled)
+      parameters: [{ name: id, in: path, required: true, schema: { type: integer } }]
+      requestBody: { content: { application/json: { schema: { type: object, required: [status], properties: { status: { $ref: '#/components/schemas/Status' } } } } } }
+      responses: { '200': { description: OK }, '404': { $ref: '#/components/responses/Error' }, '409': { $ref: '#/components/responses/Error' } }
+  /seller/stats:
+    get: { summary: To confirm, to ship, orders by status, revenue from delivered orders in the last 30 days, responses: { '200': { description: OK } } }
