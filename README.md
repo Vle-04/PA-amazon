@@ -47,7 +47,7 @@ From the root:
 |---|---|
 | `npm run dev` | migrate, seed if empty, backend (watch) + frontend dev server |
 | `npm run build` | build the frontend into `frontend/dist/` |
-| `npm start` | migrate, then start the backend (serves `frontend/dist`) |
+| `npm start` | migrate, load demo data if the database is empty, then start the backend (serves `frontend/dist`) |
 | `npm run seed` | seed demo data (no-op if already seeded) |
 | `npm run test:break-it` | the nine PRD break-it tests against `BASE_URL` (default `http://localhost:3000`) |
 | `npm run test:email` | email verification rules (only when the server runs with `EMAIL_VERIFICATION=on`) |
@@ -122,7 +122,8 @@ it must be a persistent disk.
 
 The root `Dockerfile` builds the frontend and runs the backend. It works on any host with a
 persistent disk mounted at `/data` (Fly.io, Railway, Render, or a VPS behind Caddy). Migrations
-run automatically on every start.
+run automatically on every start, and demo data is loaded automatically when the database is
+empty (no shell access needed; set `AUTO_SEED=off` to disable).
 
 Environment variables (see `backend/.env.example`):
 
@@ -148,8 +149,7 @@ fly auth login
 fly launch --no-deploy --copy-config --name <your-unique-app-name>   # keeps fly.toml
 fly volumes create shuka_data --size 1 --region fra
 fly secrets set SESSION_SECRET=$(openssl rand -hex 32) APP_URL=https://<app>.fly.dev
-fly deploy
-fly ssh console -C "node /app/backend/scripts/seed.js"     # once, for demo data
+fly deploy                                                 # demo data loads on first start
 ```
 
 - The server writes `/data/backups/shuka-YYYY-MM-DD.db` daily and keeps 7. Fly also snapshots

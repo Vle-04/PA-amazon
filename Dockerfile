@@ -23,5 +23,5 @@ RUN mkdir -p /data && chown -R node:node /data
 USER node
 WORKDIR /app/backend
 EXPOSE 3000
-# Migrations run on every start (idempotent), then the single server process starts.
-CMD ["sh", "-c", "node scripts/migrate.js && node src/index.js"]
+# Every start: migrations (idempotent), demo data if the database is empty, then the server.
+CMD ["sh", "-c", "node scripts/setup.js && node src/index.js"]
