@@ -3,8 +3,20 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { DATA_DIR, DB_PATH, UPLOADS_DIR, BACKUPS_DIR, ROOT } from './config.js';
 
+function ensureDataDirs() {
+  try {
+    for (const d of [DATA_DIR, UPLOADS_DIR, BACKUPS_DIR]) fs.mkdirSync(d, { recursive: true });
+    fs.accessSync(DATA_DIR, fs.constants.W_OK);
+  } catch (e) {
+    console.error(`\nCannot use DATA_DIR "${DATA_DIR}" (${e.code}).\n`
+      + 'It must be a writable persistent disk. On Render: Settings -> Disks -> Add disk with Mount Path\n'
+      + `"${DATA_DIR}" (needs a paid instance), or remove the DATA_DIR variable to use a temporary folder.\n`);
+    process.exit(1);
+  }
+}
+
 export function openDb(file = DB_PATH) {
-  for (const d of [DATA_DIR, UPLOADS_DIR, BACKUPS_DIR]) fs.mkdirSync(d, { recursive: true });
+  ensureDataDirs();
   const db = new Database(file);
   // DR-4 / NFR-1: set on every connection.
   db.pragma('journal_mode = WAL');
