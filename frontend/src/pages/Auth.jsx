@@ -61,6 +61,7 @@ export function Login() {
 }
 
 export function Register() {
+  const { setUser, notify } = useApp();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const [f, setF] = useState({ name: '', email: '', phone: '', password: '' });
@@ -73,7 +74,14 @@ export function Register() {
     setError(null);
     try {
       const d = await api('/auth/register', { method: 'POST', body: f });
-      navigate(verifyHref(d.email, params, d.emailSent === false));
+      if (d.user) {
+        // Email verification is off on the server: already signed in.
+        setUser(d.user);
+        notify(`Account created. Welcome to Shuka, ${d.user.name}!`);
+        navigate(safeNext(params), { replace: true });
+      } else {
+        navigate(verifyHref(d.email, params, d.emailSent === false));
+      }
     } catch (err) {
       setError(err);
     } finally {

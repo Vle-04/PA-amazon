@@ -40,9 +40,12 @@ async function user(label, { seller } = {}) {
   const email = `${label}-${run}@test.am`;
   const r = await c.post('/api/auth/register', { email, password: 'password123', name: label, phone: '+374 91 000000' });
   if (r.status !== 201) throw new Error(`register ${label}: ${JSON.stringify(r)}`);
-  if (!r.testCode) throw new Error('No test code returned: set TEST_AUTH_TOKEN to the same value as on the server');
-  const v = await c.post('/api/auth/verify-email', { email, code: r.testCode });
-  if (v.status !== 200) throw new Error(`verify ${label}: ${JSON.stringify(v)}`);
+  if (!r.user) {
+    // Server has EMAIL_VERIFICATION=on: confirm with the code it returns to test clients.
+    if (!r.testCode) throw new Error('No test code returned: set TEST_AUTH_TOKEN to the same value as on the server');
+    const v = await c.post('/api/auth/verify-email', { email, code: r.testCode });
+    if (v.status !== 200) throw new Error(`verify ${label}: ${JSON.stringify(v)}`);
+  }
   if (seller) await c.post('/api/me/seller', { storeName: `Store ${label}`, storePhone: '+374 91 000000' });
   return c;
 }

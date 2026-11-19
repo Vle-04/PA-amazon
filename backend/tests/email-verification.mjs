@@ -13,6 +13,13 @@ const check = (ok, name, info = '') => { console.log(`${ok ? '✅' : '❌'} ${na
 const email = `verify-${Date.now().toString(36)}@test.am`;
 const T = { 'x-test-token': TOKEN };
 
+const probe = await call('POST', '/api/auth/register', { email: `probe-${email}`, password: 'password123', name: 'Probe' });
+cookie = '';
+if (probe.user) {
+  console.log('Email verification is off on this server (EMAIL_VERIFICATION is not "on"); nothing to check.');
+  process.exit(0);
+}
+
 const noToken = await call('POST', '/api/auth/register', { email: `x${email}`, password: 'password123', name: 'NoToken' });
 check(noToken.status === 201 && !noToken.testCode && !cookie, 'Normal sign-up gets no code in the response and no session');
 

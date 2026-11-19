@@ -5,7 +5,7 @@ import { getDb, now } from '../db.js';
 import { setSession, clearSession, requireUser, publicUser } from '../auth.js';
 import { HttpError, conflict } from '../errors.js';
 import { validate, required, optional, str, email, phone } from '../validate.js';
-import { APP_URL, SESSION_SECRET, TEST_AUTH_TOKEN } from '../config.js';
+import { APP_URL, SESSION_SECRET, TEST_AUTH_TOKEN, EMAIL_VERIFICATION } from '../config.js';
 import { sendMail, verificationEmail } from '../mail.js';
 
 const r = Router();
@@ -75,6 +75,12 @@ r.post('/auth/register', async (req, res) => {
       throw e;
     }
   }
+  if (!EMAIL_VERIFICATION) {
+    // Verification is off: the email is just a login name; sign in straight away.
+    db.prepare('UPDATE users SET email_verified = 1, verify_code_hash = NULL WHERE id = ?').run(user.id);
+    setSession(res, user.id);
+    return res.status(201).json({ user: publicUser(db.prepare('SELECT * FROM users WHERE id = ?').get(user.id)) });
+  }
   const sent = existing && !canResend(existing) ? { emailSent: true } : await issueCode(req, user);
   res.status(201).json({ pendingVerification: true, email: user.email, ...sent });
 });
@@ -126,7 +132,10 @@ r.post('/auth/login', async (req, res) => {
   // Compare against a dummy hash when the user is unknown to keep timing similar.
   const ok = await bcrypt.compare(b.password, user?.password_hash || '$2b$10$CwTycUXWue0Thq9StjUM0uJ8.uY2lYcqzGqSZ5nE5o7SHo1v6W4mS');
   if (!user || !ok) throw new HttpError(401, 'BAD_CREDENTIALS', 'Wrong email or password');
-  if (!user.email_verified) {
+  if (!user.email_verified && !EMAIL_VERIFICATION) {
+    // Account left unconfirmed while verification was on; with it off, just let it in.
+    getDb().prepare('UPDATE users SET email_verified = 1, verify_code_hash = NULL WHERE id = ?').run(user.id);
+  } else if (!user.email_verified) {
     const sent = canResend(user) ? await issueCode(req, user) : {};
     throw new HttpError(403, 'EMAIL_NOT_VERIFIED', 'Please confirm your email first. We sent you a code.', { email: user.email, ...sent });
   }

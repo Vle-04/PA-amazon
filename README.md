@@ -30,15 +30,14 @@ Demo accounts (password `password123`, already email-verified):
 
 Production-like local run: `npm run build && npm start` → http://localhost:3000.
 
-## Email verification
+## Sign-up and email
 
-New accounts must confirm their email before they can sign in. Sign-up sends a 6-digit code
-(valid 15 minutes, 5 tries) plus a one-click link. Unverified sign-ins are sent back to the
-"Check your email" page with a fresh code. Resending is limited to once a minute.
+Sign-up needs no real email: any address in email format works (e.g. `test@fake.am`), and the
+user is signed in straight away. No emails are sent, so no mail settings are needed.
 
-Emails go out over any SMTP provider: copy `backend/.env.example` to `backend/.env` and fill in
-`SMTP_*`, `MAIL_FROM` and `APP_URL`. Without `SMTP_HOST`, emails are printed to the backend
-console instead, which is handy for local development.
+Optional: set `EMAIL_VERIFICATION=on` plus the `SMTP_*` settings (see `backend/.env.example`) to
+require a 6-digit code sent by email before the first sign-in. The code is valid for 15 minutes
+with 5 tries, and resending is limited to once a minute.
 
 ## Scripts
 
@@ -51,13 +50,13 @@ From the root:
 | `npm start` | migrate, then start the backend (serves `frontend/dist`) |
 | `npm run seed` | seed demo data (no-op if already seeded) |
 | `npm run test:break-it` | the nine PRD break-it tests against `BASE_URL` (default `http://localhost:3000`) |
-| `npm run test:email` | email verification rules |
+| `npm run test:email` | email verification rules (only when the server runs with `EMAIL_VERIFICATION=on`) |
 | `npm run test:fk` | break-it test 8 run directly against the database |
 
 Inside `backend/` there are also `npm run migrate`, `npm run backup` and
 `node scripts/seed.js --force` (wipes and reseeds).
 
-The test scripts create verified accounts with `TEST_AUTH_TOKEN` (default `dev-test-token`
+When email verification is on, the test scripts confirm their accounts with `TEST_AUTH_TOKEN` (default `dev-test-token`
 locally). Against production, set the same `TEST_AUTH_TOKEN` on the server and in your shell.
 
 ## Layout
@@ -129,8 +128,8 @@ Environment variables (see `backend/.env.example`):
 | Variable | Value |
 |---|---|
 | `SESSION_SECRET` | long random string, e.g. `openssl rand -hex 32` |
-| `APP_URL` | public address, e.g. `https://shuka.fly.dev` (used in email links) |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` | email provider settings |
+| `APP_URL` | public address of the frontend, e.g. `https://pa-amazon.netlify.app` |
+| `EMAIL_VERIFICATION`, `SMTP_*`, `MAIL_FROM` | optional, only to require email codes |
 
 ### Netlify (frontend) + Render (backend)
 
@@ -147,8 +146,7 @@ Environment variables (see `backend/.env.example`):
 fly auth login
 fly launch --no-deploy --copy-config --name <your-unique-app-name>   # keeps fly.toml
 fly volumes create shuka_data --size 1 --region fra
-fly secrets set SESSION_SECRET=$(openssl rand -hex 32) APP_URL=https://<app>.fly.dev \
-  SMTP_HOST=... SMTP_PORT=465 SMTP_USER=... SMTP_PASS=... MAIL_FROM="Shuka <...>"
+fly secrets set SESSION_SECRET=$(openssl rand -hex 32) APP_URL=https://<app>.fly.dev
 fly deploy
 fly ssh console -C "node /app/backend/scripts/seed.js"     # once, for demo data
 ```

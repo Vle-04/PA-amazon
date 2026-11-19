@@ -18,6 +18,10 @@ export const IS_PROD = process.env.NODE_ENV === 'production';
 export const SESSION_SECRET = process.env.SESSION_SECRET || (IS_PROD ? null : 'dev-only-insecure-secret');
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
+// Email verification on sign-up. Off by default: any email-shaped address works and the user is signed in at once.
+// Set EMAIL_VERIFICATION=on (plus the SMTP settings below) to require a 6-digit code sent by email.
+export const EMAIL_VERIFICATION = String(process.env.EMAIL_VERIFICATION || '').toLowerCase() === 'on';
+
 // Email (SMTP). Without SMTP_HOST, emails are printed to the server console instead of sent.
 export const SMTP = {
   host: process.env.SMTP_HOST || '',

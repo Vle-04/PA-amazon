@@ -56,9 +56,9 @@ paths:
   /auth/register:
     post:
       security: []
-      summary: Register; emails a 6-digit verification code. Does NOT sign in.
+      summary: Register. With EMAIL_VERIFICATION off (default) signs in at once and returns { user }; with it on, emails a 6-digit code and does not sign in.
       requestBody: { content: { application/json: { schema: { type: object, required: [email, password, name], properties: { email: { type: string }, password: { type: string, minLength: 8 }, name: { type: string }, phone: { type: string } } } } } }
-      responses: { '201': { description: '{ pendingVerification: true, email, emailSent }' }, '400': { $ref: '#/components/responses/Error' }, '409': { $ref: '#/components/responses/Error' } }
+      responses: { '201': { description: '{ user } (verification off) or { pendingVerification: true, email, emailSent } (verification on)' }, '400': { $ref: '#/components/responses/Error' }, '409': { $ref: '#/components/responses/Error' } }
   /auth/verify-email:
     post:
       security: []
